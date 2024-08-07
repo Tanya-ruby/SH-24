@@ -1,68 +1,77 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
-import "forge-std/Test.sol";
-interface IERC20 {
-    function withdraw(uint256 amount) external;
+
+interface CIERC20 {
+    function withdraw(uint amount) external;
     function deposit() external payable;
+    function approve(address guy, uint wad) external;
 }
 
 interface ITokenPriceOracle {
     function getValueToken(
-        uint256 investedToken,
+        uint investedToken,
         address token
-    ) external view returns (uint256);
+    ) external view returns (uint);
     function getTokenAmount(
-        uint256 investmentAmount,
+        uint investmentAmount,
         address token
-    ) external view returns (uint256);
+    ) external view returns (uint);
 }
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {TokenVault} from "./TokenVault.sol";
+import {CoInvestToken} from "./CoInvestToken.sol";
 
 contract InvestmentPool {
     struct Pool {
         address creator;
-        uint256 totalInvestment;
-        uint256 minInvestment;
-        uint256 requiredAmount;
+        uint totalInvestment;
+        uint minInvestment;
+        uint requiredAmount;
         bool isActive;
-        uint256[] investmentPercentages; // [x%, y%, ...]
+        uint[] investmentPercentages; // [x%, y%, ...]
         address[] investmentTokens; // [Token A address, Token B address, ...]
-        mapping(address => uint256) investments;
-        mapping(address => uint256) shares; // Stores user shares after activation
+        mapping(address => uint) investments;
+        mapping(address => uint) shares; // Stores user shares after activation
         address[] investors; // List of investors
-        mapping(address => uint256) tokenBalances; // Track token balances of the pool
-        uint256 investmentTime;
-        uint256 endTime;
+        mapping(address => uint) tokenBalances; // Track token balances of the pool
+        uint investmentTime;
+        uint endTime;
     }
 
-    mapping(uint256 => Pool) public pools;
-    uint256 public poolCount;
+    mapping(uint => Pool) public pools;
+    uint public poolCount;
 
     ITokenPriceOracle public priceOracle; // Token price oracle
-
+    mapping(address token => uint vaultID) public tokenVaultID;
+    TokenVault[] public tokenVaults;
+    CoInvestToken public coInvestToken;
     // Events
     event PoolCreated(
-        uint256 poolId,
+        uint poolId,
         address creator,
-        uint256 requiredAmount,
-        uint256 minInvestment,
+        uint requiredAmount,
+        uint minInvestment,
         address[] tokens,
-        uint256[] percentages,
-        uint256 investmentTime
+        uint[] percentages,
+        uint investmentTime
     );
-    event InvestmentMade(uint256 poolId, address investor, uint256 amount);
-    event PoolActivated(uint256 poolId);
-    event InvestmentWithdrawn(uint256 poolId, address investor, uint256 amount);
+    event InvestmentMade(uint poolId, address investor, uint amount);
+    event PoolActivated(uint poolId);
+    event InvestmentWithdrawn(uint poolId, address investor, uint amount);
 
     constructor(address _priceOracle) {
         priceOracle = ITokenPriceOracle(_priceOracle);
+        addVault(0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14);
+        coInvestToken = new CoInvestToken();
     }
 
     function createPool(
-        uint256 _requiredAmount,
-        uint256 _minInvestment,
+        uint _requiredAmount,
+        uint _minInvestment,
         address[] memory _tokens,
-        uint256[] memory _percentages,
-        uint256 _investmentTime
+        uint[] memory _percentages,
+        uint _investmentTime
     ) external {
         require(
             _tokens.length == _percentages.length,
@@ -78,7 +87,9 @@ contract InvestmentPool {
         pool.investmentTokens = _tokens;
         pool.investmentPercentages = _percentages;
         pool.investmentTime = _investmentTime;
-
+        for (uint i = 0; i < _tokens.length; i++) {
+            if (tokenVaultID[_tokens[i]] == 0) addVault(_tokens[i]);
+        }
         emit PoolCreated(
             poolCount,
             msg.sender,
@@ -90,7 +101,7 @@ contract InvestmentPool {
         );
     }
 
-    function invest(uint256 _poolId) external payable {
+    function invest(uint _poolId) external payable {
         Pool storage pool = pools[_poolId];
         require(
             msg.value >= pool.minInvestment,
@@ -108,16 +119,17 @@ contract InvestmentPool {
 
         pool.investments[msg.sender] += msg.value;
         pool.totalInvestment += msg.value;
-
+        pool.shares[msg.sender] = (msg.value * 100) / pool.requiredAmount;
+        coInvestToken.mint(msg.sender, msg.value);
         emit InvestmentMade(_poolId, msg.sender, msg.value);
 
         // Automatically activate the pool if the required amount is reached
-        if (pool.totalInvestment >= pool.requiredAmount && !pool.isActive) {
+        if (pool.totalInvestment == pool.requiredAmount && !pool.isActive) {
             activatePool(_poolId);
         }
     }
 
-    function activatePool(uint256 _poolId) public {
+    function activatePool(uint _poolId) private {
         Pool storage pool = pools[_poolId];
         require(!pool.isActive, "Pool already activated");
         require(
@@ -131,31 +143,22 @@ contract InvestmentPool {
         // Perform the investment based on percentages
         for (uint i = 0; i < pool.investmentTokens.length; i++) {
             address token = pool.investmentTokens[i];
-            uint256 percentage = pool.investmentPercentages[i];
-            uint256 investmentAmount = (pool.totalInvestment * percentage) /
-                100;
-
-            uint256 tokenAmount = 
-            // priceOracle.getTokenAmount(
-                investmentAmount;
-                // token
+            uint percentage = pool.investmentPercentages[i];
+            uint investmentAmount = (pool.totalInvestment * percentage) / 100;
+            uint tokenAmount = investmentAmount; // priceOracle.getTokenAmount(
+            // token
             // );
-            IERC20(token).deposit{value: investmentAmount}(); // Minting tokens with eth
-
+            CIERC20(token).deposit{value: investmentAmount}(); // Minting tokens with eth
+            TokenVault _vault = tokenVaults[tokenVaultID[token] - 1];
+            CIERC20(token).approve(address(_vault), investmentAmount);
+            _vault.deposit(tokenAmount, address(this));
             pool.tokenBalances[token] = tokenAmount;
-        }
-
-        // Calculate and store shares for each user
-        for (uint i = 0; i < pool.investors.length; i++) {
-            address investor = pool.investors[i];
-            uint256 investment = pool.investments[investor];
-            pool.shares[investor] = (investment * 100) / pool.totalInvestment;
         }
 
         emit PoolActivated(_poolId);
     }
 
-    function withdraw(uint256 _poolId) external {
+    function withdrawPool(uint _poolId) external {
         Pool storage pool = pools[_poolId];
         require(pool.isActive, "Pool is not active");
         require(
@@ -163,17 +166,15 @@ contract InvestmentPool {
             "Withdrawal period not started"
         );
 
-        uint256 totalETHValue = 0;
+        uint totalETHValue = 0;
 
         // Calculate the total ETH value of the pool's tokens and transfer to contract
         for (uint i = 0; i < pool.investmentTokens.length; i++) {
             address token = pool.investmentTokens[i];
-            uint256 totalTokenBalance = pool.tokenBalances[token];
+            uint totalTokenBalance = pool.tokenBalances[token];
 
             // Fetch the ETH value of the total token balance
-            uint256 tokenETHValue = 
-            // priceOracle.getValueToken(
-                totalTokenBalance;
+            uint tokenETHValue = totalTokenBalance; // priceOracle.getValueToken(
             //     token
             // );
 
@@ -181,7 +182,9 @@ contract InvestmentPool {
             totalETHValue += tokenETHValue;
 
             // Burn tokens or transfer them to the contract for further processing
-            IERC20(token).withdraw(totalTokenBalance);
+            TokenVault _vault = tokenVaults[tokenVaultID[token] - 1];
+            _vault.withdraw(totalTokenBalance, address(this), address(this));
+            CIERC20(token).withdraw(totalTokenBalance);
         }
 
         // Distribute the total ETH value among all investors
@@ -192,41 +195,37 @@ contract InvestmentPool {
         pool.totalInvestment = 0;
     }
 
-    function distributeShares(uint256 _poolId, uint256 totalETHValue) internal {
+    function distributeShares(uint _poolId, uint totalETHValue) private {
         Pool storage pool = pools[_poolId];
 
         for (uint i = 0; i < pool.investors.length; i++) {
             address investor = pool.investors[i];
-            uint256 sharePercentage = pool.shares[investor];
+            uint sharePercentage = pool.shares[investor];
             if (sharePercentage > 0) {
-                uint256 investorETHValue = (totalETHValue * sharePercentage) /
-                    100;
+                uint investorETHValue = (totalETHValue * sharePercentage) / 100;
 
                 // Transfer the investor's share of the ETH value
                 payable(investor).transfer(investorETHValue);
 
                 // Reset the investor's shares and investments
+                coInvestToken.burn(investor, pool.investments[investor]);
                 pool.shares[investor] = 0;
                 pool.investments[investor] = 0;
             }
         }
     }
 
-    function getInvestmentValue(
-        uint256 _poolId
-    ) external view returns (uint256) {
+    function getInvestmentValue(uint _poolId) external view returns (uint) {
         Pool storage pool = pools[_poolId];
         require(pool.isActive, "Pool is not active");
 
-        uint256 totalValue = 0;
+        uint totalValue = 0;
 
         for (uint i = 0; i < pool.investmentTokens.length; i++) {
             address token = pool.investmentTokens[i];
-            uint256 tokenBalance = pool.tokenBalances[token];
-            uint256 tokenETHValue = 
-            // priceOracle.getValueToken(
-                tokenBalance;
-                // token
+            uint tokenBalance = pool.tokenBalances[token];
+            uint tokenETHValue = tokenBalance; // priceOracle.getValueToken(
+            // token
             // );
             totalValue += tokenETHValue;
         }
@@ -235,11 +234,15 @@ contract InvestmentPool {
     }
 
     function getInvestors(
-        uint256 _poolId
+        uint _poolId
     ) external view returns (address[] memory) {
         return pools[_poolId].investors;
     }
 
-    receive() external payable{}
-
+    function addVault(address _token) internal {
+        TokenVault _vault = new TokenVault(IERC20(address(_token)));
+        tokenVaults.push(_vault);
+        tokenVaultID[_token] = tokenVaults.length;
+    }
+    receive() external payable {}
 }
