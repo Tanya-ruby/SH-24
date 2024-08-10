@@ -7,9 +7,9 @@ const Proposals = () => {
     <div className="flex flex-col overflow-auto gap-y-4 w-[80%]">
       {proposal.map((pool, key) => {
         return (
-          <p key={key}>
+          <div key={key}>
             <Proposal />
-          </p>
+          </div>
         );
       })}
     </div>
