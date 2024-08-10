@@ -1,11 +1,8 @@
 export const InvestmentPool = [
   {
     inputs: [
-      {
-        internalType: "address",
-        name: "_priceOracle",
-        type: "address",
-      },
+      { internalType: "address", name: "_router", type: "address" },
+      { internalType: "address", name: "_link", type: "address" },
     ],
     stateMutability: "nonpayable",
     type: "constructor",
@@ -122,46 +119,40 @@ export const InvestmentPool = [
     name: "PoolCreated",
     type: "event",
   },
+  { stateMutability: "payable", type: "fallback" },
+  {
+    inputs: [{ internalType: "uint64", name: "", type: "uint64" }],
+    name: "ccipReceivers",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
   {
     inputs: [],
-    name: "costToken",
+    name: "ccipSender",
     outputs: [
-      {
-        internalType: "contract CostToken",
-        name: "",
-        type: "address",
-      },
+      { internalType: "contract CCIPSender", name: "", type: "address" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "coInvestToken",
+    outputs: [
+      { internalType: "contract CoInvestToken", name: "", type: "address" },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
     inputs: [
-      {
-        internalType: "uint256",
-        name: "_requiredAmount",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "_minInvestment",
-        type: "uint256",
-      },
-      {
-        internalType: "address[]",
-        name: "_tokens",
-        type: "address[]",
-      },
-      {
-        internalType: "uint256[]",
-        name: "_percentages",
-        type: "uint256[]",
-      },
-      {
-        internalType: "uint256",
-        name: "_investmentTime",
-        type: "uint256",
-      },
+      { internalType: "uint256", name: "_requiredAmount", type: "uint256" },
+      { internalType: "uint256", name: "_minInvestment", type: "uint256" },
+      { internalType: "address[]", name: "_tokens", type: "address[]" },
+      { internalType: "uint64[]", name: "_crossChainToken", type: "uint64[]" },
+      { internalType: "uint256[]", name: "_percentages", type: "uint256[]" },
+      { internalType: "uint256", name: "_investmentTime", type: "uint256" },
     ],
     name: "createPool",
     outputs: [],
@@ -169,51 +160,21 @@ export const InvestmentPool = [
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "_poolId",
-        type: "uint256",
-      },
-    ],
+    inputs: [{ internalType: "uint256", name: "_poolId", type: "uint256" }],
     name: "getInvestmentValue",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "_poolId",
-        type: "uint256",
-      },
-    ],
+    inputs: [{ internalType: "uint256", name: "_poolId", type: "uint256" }],
     name: "getInvestors",
-    outputs: [
-      {
-        internalType: "address[]",
-        name: "",
-        type: "address[]",
-      },
-    ],
+    outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "_poolId",
-        type: "uint256",
-      },
-    ],
+    inputs: [{ internalType: "uint256", name: "_poolId", type: "uint256" }],
     name: "invest",
     outputs: [],
     stateMutability: "payable",
@@ -222,131 +183,47 @@ export const InvestmentPool = [
   {
     inputs: [],
     name: "poolCount",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     name: "pools",
     outputs: [
-      {
-        internalType: "address",
-        name: "creator",
-        type: "address",
-      },
-      {
-        internalType: "uint256",
-        name: "totalInvestment",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "minInvestment",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "requiredAmount",
-        type: "uint256",
-      },
-      {
-        internalType: "bool",
-        name: "isActive",
-        type: "bool",
-      },
-      {
-        internalType: "uint256",
-        name: "investmentTime",
-        type: "uint256",
-      },
-      {
-        internalType: "uint256",
-        name: "endTime",
-        type: "uint256",
-      },
+      { internalType: "address", name: "creator", type: "address" },
+      { internalType: "uint256", name: "totalInvestment", type: "uint256" },
+      { internalType: "uint256", name: "minInvestment", type: "uint256" },
+      { internalType: "uint256", name: "requiredAmount", type: "uint256" },
+      { internalType: "bool", name: "isActive", type: "bool" },
+      { internalType: "uint256", name: "investmentTime", type: "uint256" },
+      { internalType: "uint256", name: "endTime", type: "uint256" },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [],
-    name: "priceOracle",
-    outputs: [
-      {
-        internalType: "contract ITokenPriceOracle",
-        name: "",
-        type: "address",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
-        name: "token",
-        type: "address",
-      },
-    ],
+    inputs: [{ internalType: "address", name: "token", type: "address" }],
     name: "tokenVaultID",
-    outputs: [
-      {
-        internalType: "uint256",
-        name: "vaultID",
-        type: "uint256",
-      },
-    ],
+    outputs: [{ internalType: "uint256", name: "vaultID", type: "uint256" }],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "",
-        type: "uint256",
-      },
-    ],
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     name: "tokenVaults",
     outputs: [
-      {
-        internalType: "contract TokenVault",
-        name: "",
-        type: "address",
-      },
+      { internalType: "contract BaseFactory", name: "", type: "address" },
     ],
     stateMutability: "view",
     type: "function",
   },
   {
-    inputs: [
-      {
-        internalType: "uint256",
-        name: "_poolId",
-        type: "uint256",
-      },
-    ],
+    inputs: [{ internalType: "uint256", name: "_poolId", type: "uint256" }],
     name: "withdrawPool",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
   },
-  {
-    stateMutability: "payable",
-    type: "receive",
-  },
+  { stateMutability: "payable", type: "receive" },
 ] as const;
