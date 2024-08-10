@@ -245,6 +245,24 @@ contract InvestmentPool {
         return pools[_poolId].investors;
     }
 
+    function getTokenData(
+        uint _poolId
+    ) public view returns (address[] memory, uint[] memory) {
+        Pool storage pool = pools[_poolId];
+        return (pool.investmentTokens, pool.investmentPercentages);
+    }
+
+    function getMyInvestment(
+        uint _poolId
+    ) public view returns (uint amount, uint shares) {
+        Pool storage pool = pools[_poolId];
+        return (pool.investments[msg.sender], pool.shares[msg.sender]);
+    }
+
+    function getCoInvestHoldings() external view returns (uint) {
+        return coInvestToken.balanceOf(msg.sender);
+    }
+
     function addVault(address _token) internal {
         BaseFactory _vault = new BaseFactory(address(_token));
         tokenVaults.push(_vault);

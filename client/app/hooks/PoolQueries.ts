@@ -75,3 +75,47 @@ export const getInvestmentValue = ({ poolId }: { poolId: number }) => {
   });
   return { investmentValue, isLoading, isError };
 };
+
+export const getCoInvestHoldings = ({ poolId }: { poolId: number }) => {
+  const {
+    data: holdings,
+    isLoading,
+    isError,
+  } = useReadContract({
+    chainId: sepolia.id,
+    abi: InvestmentPool,
+    address: INVESTMENT_POOL_ADDRESS,
+    functionName: "getCoInvestHoldings",
+  });
+  return { holdings, isLoading, isError };
+};
+
+export const getMyInvestment = ({ poolId }: { poolId: number }) => {
+  const {
+    data: investmentValue,
+    isLoading,
+    isError,
+  } = useReadContract({
+    chainId: sepolia.id,
+    abi: InvestmentPool,
+    address: INVESTMENT_POOL_ADDRESS,
+    functionName: "getMyInvestment",
+    args: [BigInt(poolId)],
+  });
+  return { investmentValue, isLoading, isError };
+};
+
+export const getPoolTokenInfo = ({ poolId }: { poolId: number }) => {
+  const {
+    data: tokenInvestments,
+    isLoading,
+    isError,
+  } = useReadContract({
+    chainId: sepolia.id,
+    abi: InvestmentPool,
+    address: INVESTMENT_POOL_ADDRESS,
+    functionName: "getTokenData",
+    args: [BigInt(poolId)],
+  });
+  return { tokenInvestments, isLoading, isError };
+};

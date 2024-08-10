@@ -160,6 +160,13 @@ export const InvestmentPool = [
     type: "function",
   },
   {
+    inputs: [],
+    name: "getCoInvestHoldings",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "uint256", name: "_poolId", type: "uint256" }],
     name: "getInvestmentValue",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
@@ -170,6 +177,26 @@ export const InvestmentPool = [
     inputs: [{ internalType: "uint256", name: "_poolId", type: "uint256" }],
     name: "getInvestors",
     outputs: [{ internalType: "address[]", name: "", type: "address[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "_poolId", type: "uint256" }],
+    name: "getMyInvestment",
+    outputs: [
+      { internalType: "uint256", name: "amount", type: "uint256" },
+      { internalType: "uint256", name: "shares", type: "uint256" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "_poolId", type: "uint256" }],
+    name: "getTokenData",
+    outputs: [
+      { internalType: "address[]", name: "", type: "address[]" },
+      { internalType: "uint256[]", name: "", type: "uint256[]" },
+    ],
     stateMutability: "view",
     type: "function",
   },
