@@ -1,26 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface CIERC20 {
-    function withdraw(uint amount) external;
-    function deposit() external payable;
-    function approve(address guy, uint wad) external;
-}
-
-interface ITokenPriceOracle {
-    function getValueToken(
-        uint investedToken,
-        address token
-    ) external view returns (uint);
-    function getTokenAmount(
-        uint investmentAmount,
-        address token
-    ) external view returns (uint);
-}
-
+import {CIERC20} from "./interface/CIERC20.sol";
+import {BaseFactory} from "./BaseFactory.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TokenVault} from "./TokenVault.sol";
 import {CoInvestToken} from "./CoInvestToken.sol";
+import {CCIPSender} from "./crosschain/CCIPSender.sol";
 
 contract InvestmentPool {
     struct Pool {
@@ -31,6 +17,7 @@ contract InvestmentPool {
         bool isActive;
         uint[] investmentPercentages; // [x%, y%, ...]
         address[] investmentTokens; // [Token A address, Token B address, ...]
+        mapping(uint tokenId => uint64 destinationChain) crossChainToken;
         mapping(address => uint) investments;
         mapping(address => uint) shares; // Stores user shares after activation
         address[] investors; // List of investors
@@ -41,11 +28,11 @@ contract InvestmentPool {
 
     mapping(uint => Pool) public pools;
     uint public poolCount;
-
-    ITokenPriceOracle public priceOracle; // Token price oracle
+    mapping(uint64 => address) public ccipReceivers;
     mapping(address token => uint vaultID) public tokenVaultID;
-    TokenVault[] public tokenVaults;
+    BaseFactory[] public tokenVaults;
     CoInvestToken public coInvestToken;
+    CCIPSender public ccipSender;
     // Events
     event PoolCreated(
         uint poolId,
@@ -60,16 +47,17 @@ contract InvestmentPool {
     event PoolActivated(uint poolId);
     event InvestmentWithdrawn(uint poolId, address investor, uint amount);
 
-    constructor(address _priceOracle) {
-        priceOracle = ITokenPriceOracle(_priceOracle);
+    constructor(address _router, address _link) {
         addVault(0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14);
         coInvestToken = new CoInvestToken();
+        ccipSender = new CCIPSender(_router, _link);
     }
 
     function createPool(
         uint _requiredAmount,
         uint _minInvestment,
         address[] memory _tokens,
+        uint64[] memory _crossChainToken,
         uint[] memory _percentages,
         uint _investmentTime
     ) external {
@@ -88,6 +76,7 @@ contract InvestmentPool {
         pool.investmentPercentages = _percentages;
         pool.investmentTime = _investmentTime;
         for (uint i = 0; i < _tokens.length; i++) {
+            pool.crossChainToken[i] = _crossChainToken[i];
             if (tokenVaultID[_tokens[i]] == 0) addVault(_tokens[i]);
         }
         emit PoolCreated(
@@ -148,10 +137,21 @@ contract InvestmentPool {
             uint tokenAmount = investmentAmount; // priceOracle.getTokenAmount(
             // token
             // );
-            CIERC20(token).deposit{value: investmentAmount}(); // Minting tokens with eth
-            TokenVault _vault = tokenVaults[tokenVaultID[token] - 1];
-            CIERC20(token).approve(address(_vault), investmentAmount);
-            _vault.deposit(tokenAmount, address(this));
+            if (pool.crossChainToken[i] != 0) {
+                ccipSender.sendMessage(
+                    pool.crossChainToken[i],
+                    ccipReceivers[pool.crossChainToken[i]],
+                    token,
+                    true,
+                    tokenAmount,
+                    _poolId
+                );
+            } else {
+                CIERC20(token).deposit{value: investmentAmount}(); // Minting tokens with eth
+                BaseFactory _vault = tokenVaults[tokenVaultID[token] - 1];
+                CIERC20(token).approve(address(_vault), investmentAmount);
+                _vault.deposit(_poolId, tokenAmount);
+            }
             pool.tokenBalances[token] = tokenAmount;
         }
 
@@ -173,18 +173,25 @@ contract InvestmentPool {
             address token = pool.investmentTokens[i];
             uint totalTokenBalance = pool.tokenBalances[token];
 
-            // Fetch the ETH value of the total token balance
-            uint tokenETHValue = totalTokenBalance; // priceOracle.getValueToken(
-            //     token
-            // );
+            if (pool.crossChainToken[i] != 0) {
+                ccipSender.sendMessage(
+                    pool.crossChainToken[i],
+                    ccipReceivers[pool.crossChainToken[i]],
+                    token,
+                    false,
+                    totalTokenBalance,
+                    _poolId
+                );
+            } else {
+                BaseFactory _vault = tokenVaults[tokenVaultID[token] - 1];
+                // Fetch the ETH value of the total token balance
+                uint tokenETHValue = _vault.getValue(_poolId);
+                // Add to the total ETH value
+                totalETHValue += tokenETHValue;
 
-            // Add to the total ETH value
-            totalETHValue += tokenETHValue;
-
-            // Burn tokens or transfer them to the contract for further processing
-            TokenVault _vault = tokenVaults[tokenVaultID[token] - 1];
-            _vault.withdraw(totalTokenBalance, address(this), address(this));
-            CIERC20(token).withdraw(totalTokenBalance);
+                _vault.withdraw(_poolId, totalTokenBalance);
+                CIERC20(token).withdraw(totalTokenBalance);
+            }
         }
 
         // Distribute the total ETH value among all investors
@@ -223,10 +230,9 @@ contract InvestmentPool {
 
         for (uint i = 0; i < pool.investmentTokens.length; i++) {
             address token = pool.investmentTokens[i];
-            uint tokenBalance = pool.tokenBalances[token];
-            uint tokenETHValue = tokenBalance; // priceOracle.getValueToken(
-            // token
-            // );
+            BaseFactory _vault = tokenVaults[tokenVaultID[token] - 1];
+            // Fetch the ETH value of the total token balance
+            uint tokenETHValue = _vault.getValue(i);
             totalValue += tokenETHValue;
         }
 
@@ -240,9 +246,12 @@ contract InvestmentPool {
     }
 
     function addVault(address _token) internal {
-        TokenVault _vault = new TokenVault(IERC20(address(_token)));
+        BaseFactory _vault = new BaseFactory(address(_token));
         tokenVaults.push(_vault);
         tokenVaultID[_token] = tokenVaults.length;
     }
+
     receive() external payable {}
+
+    fallback() external payable {}
 }
