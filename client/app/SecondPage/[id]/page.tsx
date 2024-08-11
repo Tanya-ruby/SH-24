@@ -1,12 +1,12 @@
 "use client";
-import React from 'react';
+import React from "react";
 import { useReadContract } from "wagmi";
 import { Card, CardContent, CardHeader } from "@/app/components/ui/card";
 import { INVESTMENT_POOL_ADDRESS } from "@/constants";
 import { InvestmentPool } from "@/contracts/InvestmentPool";
 import { sepolia } from "wagmi/chains";
+import InvestorsList from "@/app/components/layout/InvestmentValue"; // Import the new component
 
-// This function extracts the dynamic `id` parameter from the URL.
 const PoolDetails: React.FC<{ params: { id: string } }> = ({ params }) => {
   const poolId = Number(params.id);
 
@@ -57,12 +57,18 @@ const PoolDetails: React.FC<{ params: { id: string } }> = ({ params }) => {
   ));
 
   return (
-    <div className="container py-24 sm:py-32">
-      <Card className="w-full max-w-3xl bg-muted/50 dark:bg-card hover:bg-background transition-all delay-75">
+    <div className="container py-24 sm:py-32 relative">
+      <Card className={`w-full max-w-3xl ${isActive ? 'bg-green-100' : 'bg-muted/50'} dark:bg-card hover:bg-background transition-all delay-75`}>
         <CardHeader>
           <div className="flex justify-between items-center">
             <div className="text-lg font-semibold">Pool {poolId} Details</div>
-            <div className="text-lg font-semibold">Status: {isActive ? 'Active' : 'Inactive'}</div>
+            <div
+              className={`text-lg font-semibold px-2 py-1 rounded ${
+                isActive ? "text-green-600 font-bold" : ""
+              }`}
+            >
+              Status: {isActive ? "Active" : "Inactive"}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -78,8 +84,18 @@ const PoolDetails: React.FC<{ params: { id: string } }> = ({ params }) => {
             <h3 className="font-bold">Token Investments:</h3>
             {tokenInfo}
           </div>
+          <div className="mt-4">
+            {/* Include the InvestorsList component */}
+            <InvestorsList poolId={poolId} />
+          </div>
         </CardContent>
       </Card>
+      {/* Invest button on the top right side */}
+      <div className="absolute top-4 right-4">
+        <button className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition">
+          Invest
+        </button>
+      </div>
     </div>
   );
 };
